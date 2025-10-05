@@ -1,0 +1,28 @@
+# Sensitive data
+/config/database.php
+/config/config.php
+/.env
+/backups/
+
+# Log files
+*.log
+/logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+/tmp/
+/cache/
+
+# Node modules (for Cordova)
+node_modules/
+/mobile/platforms/
+/mobile/plugins/
