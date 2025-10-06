@@ -1,8 +1,8 @@
 <?php
 class DatabaseConfig {
     public static $host = "192.168.0.25";
-    public static $username = "develop";
-    public static $password = "sarimulia139@"; 
+    public static $username = "root";
+    public static $password = ""; 
     public static $database = "simrs_db";
     public static $port = 3306;
     
