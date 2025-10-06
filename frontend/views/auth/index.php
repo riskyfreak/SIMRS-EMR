@@ -18,7 +18,7 @@
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             overflow: hidden;
-            max-width: 400px;
+            min-width: 400px;
             width: 100%;
         }
         .login-header {
@@ -34,8 +34,8 @@
 </head>
 <body>
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
+        <div class="position-relative">
+            <div class="position-absolute top-0 start-50 translate-middle">
                 <div class="login-container">
                     <div class="login-header">
                         <h2><i class="fas fa-hospital-alt me-2"></i>SIMRS</h2>

@@ -29,11 +29,11 @@ class AuthController {
 
     public function logout() {
         $this->userModel->logout();
-        redirect(BASE_URL . 'auth/login.php');
+        redirect(BASE_URL . 'auth/index.php');
     }
 
     private function showLoginPage($error = null) {
-        include 'views/auth/login.php';
+        include FRONTEND_VIEWS_PATH . '/auth/index.php';
     }
 
     private function redirectBasedOnRole($jabatan) {

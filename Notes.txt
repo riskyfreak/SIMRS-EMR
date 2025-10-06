@@ -1,0 +1,1140 @@
+SIMRS-EMR/
+├── assets/
+│   ├── css/
+│   ├── js/
+|   └── vendor/
+├── backend/
+│   ├── api/
+|   |   ├── auth.php
+|   |   ├── pasien.php
+|   |   └── registrasi.php
+│   ├── auth/
+|   |   ├── login.php
+|   |   └── logout.php
+│   ├── config/
+|   |   ├── config.php
+|   |   └── database.php
+│   └── controllers/
+|   |   ├── AuthController.php
+|   |   ├── PasienController.php
+|   |   └── RegistrasiController.php
+├── database/
+│   └── simrs_db.sql
+├── frontend/
+│   ├── models/
+|   |   ├── Database.php
+|   |   ├── PasienModel.php
+|   |   ├── RegistrasiModel.php
+|   |   └── UserModel.php
+|   └── views/
+│   |   ├── auth/
+|   |   |   └── index.php
+|   |   ├── dashboard/
+|   |   |   └── index.php
+|   |   ├── layout/
+|   |   ├── pasien/
+|   |   |   └── index.php
+├── mobile/
+│   └── config.xml
+├── .gitignore
+├── index.php
+├── README.md
+└── requirements.txt
+
+## File : backend/api/auth.php
+<?php
+header('Content-Type: application/json');
+require_once '../config/config.php';
+
+// Enable CORS
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+
+$response = ['success' => false, 'message' => ''];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    $username = $input['username'] ?? '';
+    $password = $input['password'] ?? '';
+    
+    $userModel = new UserModel();
+    $user = $userModel->authenticate($username, $password);
+    
+    if ($user) {
+        $response['success'] = true;
+        $response['message'] = 'Login berhasil';
+        $response['data'] = [
+            'user_id' => $user['id'],
+            'username' => $user['username'],
+            'nama_pegawai' => $user['nama_pegawai'],
+            'jabatan' => $user['jabatan'],
+            'unit_kerja' => $user['unit_kerja'],
+            'pegawai_nip' => $user['pegawai_nip']
+        ];
+    } else {
+        $response['message'] = 'Username atau password salah';
+    }
+} else {
+    $response['message'] = 'Method tidak diizinkan';
+}
+
+echo json_encode($response);
+?>
+
+## File : backend/api/pasien.php
+<?php
+header('Content-Type: application/json');
+require_once '../config/config.php';
+
+// Enable CORS
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+
+$response = ['success' => false, 'message' => ''];
+$patientModel = new PatientModel();
+
+switch ($_SERVER['REQUEST_METHOD']) {
+    case 'GET':
+        if (isset($_GET['no_rekam_medis'])) {
+            // Get single patient
+            $patient = $patientModel->getByNoRekamMedis($_GET['no_rekam_medis']);
+            if ($patient) {
+                $response['success'] = true;
+                $response['data'] = $patient;
+            } else {
+                $response['message'] = 'Pasien tidak ditemukan';
+            }
+        } else {
+            // Get all patients
+            $page = $_GET['page'] ?? 1;
+            $patients = $patientModel->getAll($page);
+            $response['success'] = true;
+            $response['data'] = $patients;
+            $response['pagination'] = [
+                'page' => (int)$page,
+                'total' => $patientModel->getTotalCount()
+            ];
+        }
+        break;
+        
+    case 'POST':
+        $input = json_decode(file_get_contents('php://input'), true);
+        $no_rm = $patientModel->create($input);
+        
+        if ($no_rm) {
+            $response['success'] = true;
+            $response['message'] = 'Pasien berhasil didaftarkan';
+            $response['data'] = ['no_rekam_medis' => $no_rm];
+        } else {
+            $response['message'] = 'Gagal mendaftarkan pasien';
+        }
+        break;
+        
+    default:
+        $response['message'] = 'Method tidak diizinkan';
+        break;
+}
+
+echo json_encode($response);
+?>
+
+## File : backend/api/registrasi.php
+## Belum Ada
+
+## File : backend/auth/login.php
+<?php
+require_once 'config/config.php';
+require_once 'controllers/AuthController.php';
+
+$authController = new AuthController();
+$authController->login();
+?>
+
+## File : backend/auth/logout.php
+<?php
+require_once 'config/config.php';
+require_once 'controllers/AuthController.php';
+
+$authController = new AuthController();
+$authController->logout();
+?>
+
+## File : backend/config/config.php
+<?php
+// Konfigurasi dasar aplikasi
+require_once 'config/database.php';
+require_once 'models/Database.php';
+require_once 'models/UserModel.php';
+
+session_start();
+date_default_timezone_set('Asia/Jakarta');
+
+define('BASE_URL', 'http://192.168.0.25/simrs/');
+define('DB_HOST', '192.168.0.25');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'simrs_db');
+
+// Auto load classes
+spl_autoload_register(function ($class_name) {
+    include 'controllers/' . $class_name . '.php';
+});
+
+// Helper functions
+function redirect($url) {
+    header("Location: $url");
+    exit;
+}
+
+function isLoggedIn() {
+    return isset($_SESSION['user_id']);
+}
+
+function hasRole($allowed_roles) {
+    if (!isLoggedIn()) return false;
+    return in_array($_SESSION['role'], $allowed_roles);
+}
+?>
+
+## File : backend/config/database.php
+<?php
+class DatabaseConfig {
+    public static $host = "192.168.0.25";
+    public static $username = "root";
+    public static $password = ""; 
+    public static $database = "simrs_db";
+    public static $port = 3306;
+    
+    public static function getDSN() {
+        return "mysql:host=" . self::$host . ";dbname=" . self::$database . ";charset=utf8mb4";
+    }
+}
+?>
+
+## File : backend/controllers/AuthController.php
+<?php
+class AuthController {
+    private $userModel;
+
+    public function __construct() {
+        $this->userModel = new UserModel();
+    }
+
+    public function login() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $username = $_POST['username'] ?? '';
+            $password = $_POST['password'] ?? '';
+
+            $user = $this->userModel->authenticate($username, $password);
+
+            if ($user) {
+                $this->userModel->createUserSession($user);
+                
+                // Redirect based on role
+                $this->redirectBasedOnRole($user['jabatan']);
+            } else {
+                $error = "Username atau password salah!";
+                $this->showLoginPage($error);
+            }
+        } else {
+            $this->showLoginPage();
+        }
+    }
+
+    public function logout() {
+        $this->userModel->logout();
+        redirect(BASE_URL . 'auth/login.php');
+    }
+
+    private function showLoginPage($error = null) {
+        include 'views/auth/login.php';
+    }
+
+    private function redirectBasedOnRole($jabatan) {
+        $roleRoutes = [
+            'admin' => 'dashboard.php',
+            'dokter' => 'dokter/dashboard.php',
+            'perawat' => 'perawat/dashboard.php',
+            'pendaftaran' => 'pendaftaran/dashboard.php',
+            'farmasi' => 'farmasi/dashboard.php',
+            'keuangan' => 'keuangan/dashboard.php'
+        ];
+
+        $defaultRoute = $roleRoutes[$jabatan] ?? 'dashboard.php';
+        redirect(BASE_URL . $defaultRoute);
+    }
+}
+?>
+
+## File : backend/controllers/PasienController.php
+<?php
+class PatientController {
+    private $patientModel;
+
+    public function __construct() {
+        $this->patientModel = new PatientModel();
+    }
+
+    public function index() {
+        if (!isLoggedIn()) {
+            redirect(BASE_URL . 'index.php?page=auth&action=login');
+        }
+
+        $patients = $this->patientModel->getAll();
+        require_once 'views/patient/index.php';
+    }
+
+    public function create() {
+        if (!isLoggedIn()) {
+            redirect(BASE_URL . 'index.php?page=auth&action=login');
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $data = $this->getFormData();
+            
+            if ($this->patientModel->create($data)) {
+                $_SESSION['success_message'] = 'Data pasien berhasil ditambahkan.';
+                redirect(BASE_URL . 'index.php?page=patient&action=index');
+            } else {
+                $error = "Gagal menambahkan data pasien.";
+                require_once 'views/patient/create.php';
+            }
+        } else {
+            require_once 'views/patient/create.php';
+        }
+    }
+
+    public function edit($noRekamMedis) {
+        if (!isLoggedIn()) {
+            redirect(BASE_URL . 'index.php?page=auth&action=login');
+        }
+
+        $patient = $this->patientModel->getByNoRekamMedis($noRekamMedis);
+
+        if (!$patient) {
+            $_SESSION['error_message'] = 'Data pasien tidak ditemukan.';
+            redirect(BASE_URL . 'index.php?page=patient&action=index');
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $data = $this->getFormData();
+            
+            if ($this->patientModel->update($noRekamMedis, $data)) {
+                $_SESSION['success_message'] = 'Data pasien berhasil diperbarui.';
+                redirect(BASE_URL . 'index.php?page=patient&action=index');
+            } else {
+                $error = "Gagal memperbarui data pasien.";
+                require_once 'views/patient/edit.php';
+            }
+        } else {
+            require_once 'views/patient/edit.php';
+        }
+    }
+
+    public function delete($noRekamMedis) {
+        if (!isLoggedIn()) {
+            redirect(BASE_URL . 'index.php?page=auth&action=login');
+        }
+
+        if ($this->patientModel->delete($noRekamMedis)) {
+            $_SESSION['success_message'] = 'Data pasien berhasil dihapus.';
+        } else {
+            $_SESSION['error_message'] = 'Gagal menghapus data pasien.';
+        }
+
+        redirect(BASE_URL . 'index.php?page=patient&action=index');
+    }
+
+    private function getFormData() {
+        return [
+            'no_rekam_medis' => $_POST['no_rekam_medis'],
+            'nik' => $_POST['nik'],
+            'nama_pasien' => $_POST['nama_pasien'],
+            'tempat_lahir' => $_POST['tempat_lahir'],
+            'tanggal_lahir' => $_POST['tanggal_lahir'],
+            'jenis_kelamin' => $_POST['jenis_kelamin'],
+            'golongan_darah' => $_POST['golongan_darah'],
+            'agama' => $_POST['agama'],
+            'status_perkawinan' => $_POST['status_perkawinan'],
+            'pendidikan' => $_POST['pendidikan'],
+            'pekerjaan' => $_POST['pekerjaan'],
+            'alamat' => $_POST['alamat'],
+            'kd_kelurahan' => $_POST['kd_kelurahan'],
+            'kd_kecamatan' => $_POST['kd_kecamatan'],
+            'kd_kabupaten' => $_POST['kd_kabupaten'],
+            'kd_provinsi' => $_POST['kd_provinsi'],
+            'no_telepon' => $_POST['no_telepon'],
+            'no_kartu' => $_POST['no_kartu'],
+            'nama_ibu' => $_POST['nama_ibu'],
+            'suku_bangsa' => $_POST['suku_bangsa'],
+            'bahasa' => $_POST['bahasa'],
+            'nama_penanggung_jawab' => $_POST['nama_penanggung_jawab'],
+            'hubungan_dengan_pasien' => $_POST['hubungan_dengan_pasien'],
+            'alamat_penanggung_jawab' => $_POST['alamat_penanggung_jawab'],
+            'kd_kelurahan_penanggung_jawab' => $_POST['kd_kelurahan_penanggung_jawab'],
+            'kd_kecamatan_penanggung_jawab' => $_POST['kd_kecamatan_penanggung_jawab'],
+            'kd_kabupaten_penanggung_jawab' => $_POST['kd_kabupaten_penanggung_jawab'],
+            'kd_provinsi_penanggung_jawab' => $_POST['kd_provinsi_penanggung_jawab'],
+            'no_telepon_penanggung_jawab' => $_POST['no_telepon_penanggung_jawab'],
+            'email' => $_POST['email']
+        ];
+    }
+}
+?>
+
+## File : backend/controllers/RegistrasiController.php
+## Belum Ada
+
+## File : database/simrs_db.sql
+CREATE TABLE pasien (
+  no_rekam_medis VARCHAR(20) PRIMARY KEY,
+  nik VARCHAR(16) UNIQUE,
+  nama_pasien VARCHAR(100),
+  tempat_lahir VARCHAR(50),
+  tanggal_lahir DATE,
+  jenis_kelamin ENUM('L', 'P'),
+  golongan_darah ENUM('A', 'B', 'AB', 'O'),
+  agama VARCHAR(20),
+  status_perkawinan VARCHAR(15),
+  pendidikan VARCHAR(30),
+  pekerjaan VARCHAR(50),
+  alamat TEXT,
+  kd_kelurahan VARCHAR(10),
+  kd_kecamatan VARCHAR(10),
+  kd_kabupaten VARCHAR(10),
+  kd_provinsi VARCHAR(10),
+  no_telepon VARCHAR(15),
+  no_kartu VARCHAR(30),
+  nama_ibu VARCHAR(100),
+  suku_bangsa INT,
+  bahasa INT,
+  nama_penanggung_jawab VARCHAR(100),
+  hubungan_dengan_pasien VARCHAR(30),
+  alamat_penanggung_jawab TEXT,
+  kd_kelurahan_penanggung_jawab VARCHAR(10),
+  kd_kecamatan_penanggung_jawab VARCHAR(10),
+  kd_kabupaten_penanggung_jawab VARCHAR(10),
+  kd_provinsi_penanggung_jawab VARCHAR(10),
+  no_telepon_penanggung_jawab VARCHAR(15),
+  email VARCHAR(100),
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  FOREIGN KEY (suku_bangsa) REFERENCES suku_bangsa(id),
+  FOREIGN KEY (bahasa) REFERENCES bahasa(id),
+  FOREIGN KEY (kd_kelurahan) REFERENCES kelurahan(kd_kelurahan),
+  FOREIGN KEY (kd_kecamatan) REFERENCES kecamatan(kd_kecamatan),
+  FOREIGN KEY (kd_kabupaten) REFERENCES kabupaten(kd_kabupaten),
+  FOREIGN KEY (kd_provinsi) REFERENCES provinsi(kd_provinsi),
+  FOREIGN KEY (kd_kelurahan_penanggung_jawab) REFERENCES kelurahan(kd_kelurahan),
+  FOREIGN KEY (kd_kecamatan_penanggung_jawab) REFERENCES kecamatan(kd_kecamatan),
+  FOREIGN KEY (kd_kabupaten_penanggung_jawab) REFERENCES kabupaten(kd_kabupaten), 
+  FOREIGN KEY (kd_provinsi_penanggung_jawab) REFERENCES provinsi(kd_provinsi)
+);
+
+CREATE TABLE provinsi (
+  kd_provinsi VARCHAR(10) PRIMARY KEY,
+  nama_provinsi VARCHAR(50)
+);
+CREATE TABLE kabupaten (
+  kd_kabupaten VARCHAR(10) PRIMARY KEY,
+  nama_kabupaten VARCHAR(50),
+  kd_provinsi VARCHAR(10),
+  FOREIGN KEY (kd_provinsi) REFERENCES provinsi(kd_provinsi)
+);
+CREATE TABLE kecamatan (
+  kd_kecamatan VARCHAR(10) PRIMARY KEY,
+  nama_kecamatan VARCHAR(50),
+  kd_kabupaten VARCHAR(10),
+  FOREIGN KEY (kd_kabupaten) REFERENCES kabupaten(kd_kabupaten)
+);
+CREATE TABLE kelurahan (
+  kd_kelurahan VARCHAR(10) PRIMARY KEY,
+  nama_kelurahan VARCHAR(50),
+  kd_kecamatan VARCHAR(10),
+  FOREIGN KEY (kd_kecamatan) REFERENCES kecamatan(kd_kecamatan)
+);
+CREATE TABLE suku_bangsa (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  nama_suku VARCHAR(50)
+);
+CREATE TABLE bahasa (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  nama_bahasa VARCHAR(50)
+);
+
+CREATE TABLE pegawai (
+  nip VARCHAR(16) PRIMARY KEY,
+  nama_pegawai VARCHAR(100),
+  tempat_lahir VARCHAR(50),
+  tanggal_lahir DATE,
+  jenis_kelamin ENUM('L', 'P'),
+  agama VARCHAR(20),
+  status_perkawinan VARCHAR(15),
+  pendidikan VARCHAR(30),
+  jabatan VARCHAR(50),
+  jenjang_jabatan VARCHAR(30),
+  kelompok_jabatan VARCHAR(30),
+  unit_kerja VARCHAR(50),
+  bagian VARCHAR(50),
+  resiko_kerja VARCHAR(30),
+  tingkat_emergensi VARCHAR(30),
+  status_wajib_pajak VARCHAR(30),
+  status_pegawai VARCHAR(30),
+  npwp VARCHAR(20),
+  alamat TEXT,
+  kd_kelurahan VARCHAR(10),
+  kd_kecamatan VARCHAR(10),
+  kd_kabupaten VARCHAR(10),
+  kd_provinsi VARCHAR(10),
+  tanggal_masuk DATE,
+  waktu_kerja CHAR(20),
+  no_telepon VARCHAR(15),
+  email VARCHAR(100),
+  foto VARCHAR(255),
+  status_aktif BOOLEAN,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  FOREIGN KEY (kd_kelurahan) REFERENCES kelurahan(kd_kelurahan),
+  FOREIGN KEY (kd_kecamatan) REFERENCES kecamatan(kd_kecamatan),
+  FOREIGN KEY (kd_kabupaten) REFERENCES kabupaten(kd_kabupaten),
+  FOREIGN KEY (kd_provinsi) REFERENCES provinsi(kd_provinsi)
+);
+
+CREATE TABLE user (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) UNIQUE,
+  password VARCHAR(255),
+  pegawai_nip VARCHAR(16),
+  last_login TIMESTAMP,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  FOREIGN KEY (pegawai_nip) REFERENCES pegawai(nip)
+);
+
+CREATE TABLE registrasi_pasien (
+  no_registrasi VARCHAR(20) PRIMARY KEY,
+  no_rekam_medis VARCHAR(20),
+  tanggal_registrasi TIMESTAMP,
+  jam_registrasi TIME,
+  nama_penjamin VARCHAR(100),
+  hubungan_dengan_pasien VARCHAR(30),
+  alamat_penjamin TEXT,
+  kd_kelurahan_penjamin VARCHAR(10),
+  kd_kecamatan_penjamin VARCHAR(10),
+  kd_kabupaten_penjamin VARCHAR(10),
+  kd_provinsi_penjamin VARCHAR(10),
+  no_telepon_penjamin VARCHAR(15),
+  kd_poli VARCHAR(50),
+  kd_dokter VARCHAR(100),
+  status_rawat ENUM('Belum', 'Sudah', 'Batal', 'Dirujuk', 'Dirawat', 'Meninggal', 'Pulang Paksa'),
+  status_daftar ENUM('Baru', 'Lama'),
+  status_kunjungan ENUM('Kunjungan Pertama', 'Kunjungan Ulang'),
+  status_lanjut ENUM('Rawat Jalan', 'Rawat Inap', 'IGD'),
+  cara_bayar ENUM('Umum', 'Asuransi', 'BPJS', 'Perusahaan', 'Lain-lain'),
+  kd_penjamin VARCHAR(10),
+  kd_penjamin_asal VARCHAR(10), // Optional, jika pasien bpjs tetapi COB dengan asuransi lain. Ada juga pasien Perusahaan yang di tanggung Asuransi
+  no_kartu VARCHAR(30),
+  umur_saat_pelayanan VARCHAR(20),
+  petugas_input VARCHAR(16),
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  FOREIGN KEY (no_rekam_medis) REFERENCES pasien(no_rekam_medis),
+  FOREIGN KEY (kd_poli) REFERENCES poliklinik(kd_poli),
+  FOREIGN KEY (kd_dokter) REFERENCES dokter(nip),
+  FOREIGN KEY (kd_penjamin) REFERENCES penjamin_pasien(kd_penjamin),
+  FOREIGN KEY (kd_penjamin_asal) REFERENCES penjamin_pasien(kd_penjamin),
+  FOREIGN KEY (kd_kelurahan_penjamin) REFERENCES kelurahan(kd_kelurahan),
+  FOREIGN KEY (kd_kecamatan_penjamin) REFERENCES kecamatan(kd_kecamatan),
+  FOREIGN KEY (kd_kabupaten_penjamin) REFERENCES kabupaten(kd_kabupaten),
+  FOREIGN KEY (kd_provinsi_penjamin) REFERENCES provinsi(kd_provinsi),
+  FOREIGN KEY (petugas_input) REFERENCES pegawai(nip)
+);
+
+CREATE TABLE poliklinik (
+  kd_poli VARCHAR(50) PRIMARY KEY,
+  nama_poli VARCHAR(100),
+  deskripsi TEXT,
+  status_aktif BOOLEAN
+);
+
+CREATE TABLE dokter (
+  nip VARCHAR(16) PRIMARY KEY,
+  nama_dokter VARCHAR(100),
+  kd_spesialis VARCHAR(50),
+  lulusan_pendidikan VARCHAR(100),
+  no_ijin_praktek VARCHAR(50),
+  no_str VARCHAR(50),
+  status_aktif BOOLEAN,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  FOREIGN KEY (kd_spesialis) REFERENCES spesialis(kd_spesialis)
+);
+
+CREATE TABLE spesialis (
+  kd_spesialis VARCHAR(50) PRIMARY KEY,
+  nama_spesialis VARCHAR(100),
+  deskripsi TEXT
+);
+
+CREATE TABLE penjamin_pasien (
+  kd_penjamin VARCHAR(10) PRIMARY KEY,
+  nama_penjamin VARCHAR(100),
+  alamat TEXT,
+  no_telepon VARCHAR(15),
+  email VARCHAR(100),
+  jenis_penjamin ENUM('Umum', 'Asuransi', 'BPJS', 'Perusahaan', 'Lain-lain'),
+  status_aktif BOOLEAN
+);
+
+## File : frontend/models/Database.php
+<?php
+class Database {
+    private $connection;
+    private static $instance = null;
+
+    public function __construct() {
+        try {
+            $this->connection = new PDO(
+                "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4", DB_USER, DB_PASS,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false
+                ]
+            );
+        } catch (PDOException $e) {
+            die("Database connection failed: " . $e->getMessage());
+        }
+    }
+
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    public function getConnection() {
+        return $this->connection;
+    }
+}
+?>
+
+## File : frontend/models/PasienModel.php
+<?php
+class PatientModel {
+    private $db;
+    
+    public function __construct() {
+        $this->db = Database::getInstance()->getConnection();
+    }
+    
+    // Create new patient
+    public function create($data) {
+        // Generate nomor rekam medis otomatis
+        $no_rekam_medis = $this->generateNoRekamMedis();
+        $data['no_rekam_medis'] = $no_rekam_medis;
+        
+        $query = "INSERT INTO pasien (
+            no_rekam_medis, nik, nama_pasien, tempat_lahir, tanggal_lahir, 
+            jenis_kelamin, golongan_darah, agama, status_perkawinan, pendidikan, 
+            pekerjaan, alamat, kd_kelurahan, kd_kecamatan, kd_kabupaten, kd_provinsi, 
+            no_telepon, no_kartu, nama_ibu, suku_bangsa, bahasa, 
+            nama_penanggung_jawab, hubungan_dengan_pasien, alamat_penanggung_jawab, 
+            kd_kelurahan_penanggung_jawab, kd_kecamatan_penanggung_jawab, 
+            kd_kabupaten_penanggung_jawab, kd_provinsi_penanggung_jawab, 
+            no_telepon_penanggung_jawab, email, created_at
+        ) VALUES (
+            :no_rekam_medis, :nik, :nama_pasien, :tempat_lahir, :tanggal_lahir, 
+            :jenis_kelamin, :golongan_darah, :agama, :status_perkawinan, :pendidikan, 
+            :pekerjaan, :alamat, :kd_kelurahan, :kd_kecamatan, :kd_kabupaten, :kd_provinsi, 
+            :no_telepon, :no_kartu, :nama_ibu, :suku_bangsa, :bahasa, 
+            :nama_penanggung_jawab, :hubungan_dengan_pasien, :alamat_penanggung_jawab, 
+            :kd_kelurahan_penanggung_jawab, :kd_kecamatan_penanggung_jawab, 
+            :kd_kabupaten_penanggung_jawab, :kd_provinsi_penanggung_jawab, 
+            :no_telepon_penanggung_jawab, :email, NOW()
+        )";
+        
+        $stmt = $this->db->prepare($query);
+        return $stmt->execute($data) ? $no_rekam_medis : false;
+    }
+    
+    // Get all patients with pagination
+    public function getAll($page = 1, $limit = 10) {
+        $offset = ($page - 1) * $limit;
+        
+        $query = "SELECT * FROM pasien 
+                 ORDER BY created_at DESC 
+                 LIMIT :limit OFFSET :offset";
+                 
+        $stmt = $this->db->prepare($query);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll();
+    }
+    
+    // Get patient by no_rekam_medis
+    public function getByNoRekamMedis($no_rekam_medis) {
+        $query = "SELECT pasien.*, 
+                 provinsi.nama_provinsi, kabupaten.nama_kabupaten, 
+                 kecamatan.nama_kecamatan, kelurahan.nama_kelurahan
+                 FROM pasien
+                 LEFT JOIN provinsi ON pasien.kd_provinsi = provinsi.kd_provinsi
+                 LEFT JOIN kabupaten ON pasien.kd_kabupaten = kabupaten.kd_kabupaten
+                 LEFT JOIN kecamatan ON pasien.kd_kecamatan = kecamatan.kd_kecamatan
+                 LEFT JOIN kelurahan ON pasien.kd_kelurahan = kelurahan.kd_kelurahan
+                 WHERE pasien.no_rekam_medis = :no_rekam_medis";
+                 
+        $stmt = $this->db->prepare($query);
+        $stmt->bindParam(':no_rekam_medis', $no_rekam_medis);
+        $stmt->execute();
+        
+        return $stmt->fetch();
+    }
+    
+    // Update patient
+    public function update($no_rekam_medis, $data) {
+        $data['no_rekam_medis'] = $no_rekam_medis;
+        
+        $query = "UPDATE pasien SET 
+            nik = :nik, nama_pasien = :nama_pasien, tempat_lahir = :tempat_lahir, 
+            tanggal_lahir = :tanggal_lahir, jenis_kelamin = :jenis_kelamin, 
+            golongan_darah = :golongan_darah, agama = :agama, status_perkawinan = :status_perkawinan, 
+            pendidikan = :pendidikan, pekerjaan = :pekerjaan, alamat = :alamat, 
+            kd_kelurahan = :kd_kelurahan, kd_kecamatan = :kd_kecamatan, 
+            kd_kabupaten = :kd_kabupaten, kd_provinsi = :kd_provinsi, 
+            no_telepon = :no_telepon, no_kartu = :no_kartu, nama_ibu = :nama_ibu, 
+            suku_bangsa = :suku_bangsa, bahasa = :bahasa, 
+            nama_penanggung_jawab = :nama_penanggung_jawab, 
+            hubungan_dengan_pasien = :hubungan_dengan_pasien, 
+            alamat_penanggung_jawab = :alamat_penanggung_jawab, 
+            kd_kelurahan_penanggung_jawab = :kd_kelurahan_penanggung_jawab, 
+            kd_kecamatan_penanggung_jawab = :kd_kecamatan_penanggung_jawab, 
+            kd_kabupaten_penanggung_jawab = :kd_kabupaten_penanggung_jawab, 
+            kd_provinsi_penanggung_jawab = :kd_provinsi_penanggung_jawab, 
+            no_telepon_penanggung_jawab = :no_telepon_penanggung_jawab, 
+            email = :email, updated_at = NOW()
+            WHERE no_rekam_medis = :no_rekam_medis";
+            
+        $stmt = $this->db->prepare($query);
+        return $stmt->execute($data);
+    }
+    
+    // Search patients
+    public function search($keyword) {
+        $query = "SELECT * FROM pasien 
+                 WHERE nama_pasien LIKE :keyword 
+                    OR nik LIKE :keyword 
+                    OR no_rekam_medis LIKE :keyword
+                 ORDER BY nama_pasien";
+                 
+        $stmt = $this->db->prepare($query);
+        $stmt->bindValue(':keyword', "%$keyword%");
+        $stmt->execute();
+        
+        return $stmt->fetchAll();
+    }
+    
+    // Get total patients count
+    public function getTotalCount() {
+        $query = "SELECT COUNT(*) as total FROM pasien";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        
+        return $stmt->fetch()['total'];
+    }
+    
+    // Generate nomor rekam medis otomatis
+    private function generateNoRekamMedis() {
+        $year = date('Y');
+        $month = date('m');
+        
+        // Format: RMYYYYMMXXX (contoh: RM202412001)
+        $query = "SELECT COUNT(*) as count FROM pasien 
+                 WHERE no_rekam_medis LIKE 'RM$year$month%'";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        
+        $count = $stmt->fetch()['count'] + 1;
+        $sequence = str_pad($count, 3, '0', STR_PAD_LEFT);
+        
+        return "RM$year$month$sequence";
+    }
+}
+?>
+
+## File : frontend/models/RegistrasiModel.php
+## Belum Ada
+
+## File : frontend/models/UserModel.php
+<?php
+class UserModel {
+    private $db;
+    
+    public function __construct() {
+        $this->db = Database::getInstance()->getConnection();
+    }
+    
+    public function authenticate($username, $password) {
+        $query = "SELECT user.*, pegawai.nama_pegawai, pegawai.jabatan, pegawai.unit_kerja 
+                 FROM user
+                 JOIN pegawai ON user.pegawai_nip = pegawai.nip 
+                 WHERE user.username = :username AND pegawai.status_aktif = 1";
+                 
+        $stmt = $this->db->prepare($query);
+        $stmt->bindParam(':username', $username);
+        $stmt->execute();
+        
+        $user = $stmt->fetch();
+        
+        if ($user && password_verify($password, $user['password'])) {
+            $this->updateLastLogin($user['id']);
+            return $user;
+        }
+        
+        return false;
+    }
+    
+    private function updateLastLogin($userId) {
+        $query = "UPDATE user SET last_login = NOW() WHERE id = :id";
+        $stmt = $this->db->prepare($query);
+        $stmt->bindParam(':id', $userId);
+        $stmt->execute();
+    }
+
+    public function createUserSession($user) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['nama_pegawai'] = $user['nama_pegawai'];
+        $_SESSION['jabatan'] = $user['jabatan'];
+        $_SESSION['unit_kerja'] = $user['unit_kerja'];
+        $_SESSION['pegawai_nip'] = $user['pegawai_nip'];
+    }
+    
+    public function logout() {
+        session_destroy();
+        session_start();
+    }
+}
+?>
+
+## File : frontend/views/auth/index.php
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SIMRS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            background: linear-gradient(135deg, #66cbeaff 0%, #dd9a63ff 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+        }
+        .login-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+            max-width: 400px;
+            width: 100%;
+        }
+        .login-header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .login-body {
+            padding: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="login-container">
+                    <div class="login-header">
+                        <h2><i class="fas fa-hospital-alt me-2"></i>SIMRS</h2>
+                        <p class="mb-0">Sistem Informasi Manajemen Rumah Sakit</p>
+                    </div>
+                    <div class="login-body">
+                        <?php if (isset($error)): ?>
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <?php echo $error; ?>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <form method="POST" action="">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">
+                                    <i class="fas fa-user me-2"></i>Username
+                                </label>
+                                <input type="text" class="form-control" id="username" name="username" required placeholder="Masukkan username">
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">
+                                    <i class="fas fa-lock me-2"></i>Password
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" required placeholder="Masukkan password">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 py-2">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            </button>
+                        </form>
+                        
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                &copy; 2025 SIMRS - Electronic Medical Record
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script>
+        // Focus on username field
+        document.getElementById('username').focus();
+    </script>
+</body>
+</html>
+
+## File : frontend/views/dashboard/index.php
+<?php
+if (!isLoggedIn()) {
+    redirect(BASE_URL . 'index.php?page=auth&action=login');
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SIMRS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#"><i class="fas fa-hospital-alt"></i> SIMRS</a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    Selamat datang, <?php echo $_SESSION['nama_pegawai']; ?>
+                </span>
+                <a class="nav-link" href="<?php echo BASE_URL; ?>index.php?page=auth&action=logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2>Dashboard</h2>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card text-white bg-primary mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-users"></i> Pasien</h5>
+                        <p class="card-text">Manajemen data pasien</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-success mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-clipboard-list"></i> Pendaftaran</h5>
+                        <p class="card-text">Pendaftaran pasien baru</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-warning mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-pills"></i> Farmasi</h5>
+                        <p class="card-text">Manajemen obat dan resep</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-info mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-file-medical"></i> Laporan</h5>
+                        <p class="card-text">Cetak laporan</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</body>
+</html>
+
+## File : frontend/views/patient/index..php
+<?php
+if (!isLoggedIn()) {
+    redirect(BASE_URL . 'index.php?page=auth&action=login');
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Pasien - SIMRS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#"><i class="fas fa-hospital-alt"></i> SIMRS</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="<?php echo BASE_URL; ?>index.php?page=dashboard">Dashboard</a>
+                <a class="nav-link active" href="<?php echo BASE_URL; ?>index.php?page=patient&action=index">Pasien</a>
+                <span class="navbar-text me-3">
+                    <?php echo $_SESSION['nama_pegawai']; ?>
+                </span>
+                <a class="nav-link" href="<?php echo BASE_URL; ?>index.php?page=auth&action=logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Data Pasien</h2>
+            <a href="<?php echo BASE_URL; ?>index.php?page=patient&action=create" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Tambah Pasien
+            </a>
+        </div>
+
+        <?php if (isset($_SESSION['success_message'])): ?>
+            <div class="alert alert-success"><?php echo $_SESSION['success_message']; unset($_SESSION['success_message']); ?></div>
+        <?php endif; ?>
+
+        <?php if (isset($_SESSION['error_message'])): ?>
+            <div class="alert alert-danger"><?php echo $_SESSION['error_message']; unset($_SESSION['error_message']); ?></div>
+        <?php endif; ?>
+
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>No. RM</th>
+                            <th>NIK</th>
+                            <th>Nama Pasien</th>
+                            <th>Tanggal Lahir</th>
+                            <th>Jenis Kelamin</th>
+                            <th>No. Telepon</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($patients as $patient): ?>
+                        <tr>
+                            <td><?php echo $patient['no_rekam_medis']; ?></td>
+                            <td><?php echo $patient['nik']; ?></td>
+                            <td><?php echo $patient['nama_pasien']; ?></td>
+                            <td><?php echo date('d/m/Y', strtotime($patient['tanggal_lahir'])); ?></td>
+                            <td><?php echo $patient['jenis_kelamin'] == 'L' ? 'Laki-laki' : 'Perempuan'; ?></td>
+                            <td><?php echo $patient['no_telepon']; ?></td>
+                            <td>
+                                <a href="<?php echo BASE_URL; ?>index.php?page=patient&action=edit&id=<?php echo $patient['no_rekam_medis']; ?>" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="<?php echo BASE_URL; ?>index.php?page=patient&action=delete&id=<?php echo $patient['no_rekam_medis']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Apakah Anda yakin?')">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</body>
+</html>
+
+## File : mobile/config.xml
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="com.simrs.erm" version="1.0.0" xmlns="http://www.w3.org/ns/widgets">
+    <name>SIMRS Mobile</name>
+    <description>Sistem Informasi Manajemen Rumah Sakit</description>
+    <author email="dev@simrs.com" href="http://192.168.0.25">
+        SIMRS Development Team
+    </author>
+    <content src="http://192.168.0.25/simrs/mobile/index.html" />
+    <access origin="*" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <platform name="android">
+        <allow-intent href="market:*" />
+    </platform>
+    <platform name="ios">
+        <allow-intent href="itms:*" />
+        <allow-intent href="itms-apps:*" />
+    </platform>
+</widget>
+
+## File index.php
+<?php
+require_once 'config/config.php';
+
+// Routing sederhana
+$page = $_GET['page'] ?? 'auth';
+$action = $_GET['action'] ?? 'login';
+
+// Route mapping
+if ($page == 'auth') {
+    $authController = new AuthController();
+    if ($action == 'login') {
+        $authController->login();
+    } elseif ($action == 'logout') {
+        $authController->logout();
+    } else {
+        // Default ke login
+        $authController->login();
+    }
+} elseif ($page == 'patient') {
+    require_once 'controllers/PatientController.php';
+    $patientController = new PatientController();
+    
+    $action = $_GET['action'] ?? 'index';
+    $id = $_GET['id'] ?? null;
+    
+    if ($action == 'index') {
+        $patientController->index();
+    } elseif ($action == 'create') {
+        $patientController->create();
+    } elseif ($action == 'edit' && $id) {
+        $patientController->edit($id);
+    } elseif ($action == 'delete' && $id) {
+        $patientController->delete($id);
+    } else {
+        // Default ke index
+        $patientController->index();
+    }
+} elseif ($page == 'dashboard') {
+    require_once 'views/dashboard/index.php';
+} else {
+    // Page not found
+    http_response_code(404);
+    echo "Halaman tidak ditemukan";
+}
+?>
