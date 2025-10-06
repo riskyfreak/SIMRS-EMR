@@ -43,8 +43,9 @@ class UserModel {
     }
     
     public function logout() {
-        session_destroy();
         session_start();
+        session_unset();
+        session_destroy(); 
     }
 }
 ?>

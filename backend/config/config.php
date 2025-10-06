@@ -19,27 +19,18 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 date_default_timezone_set('Asia/Jakarta');
 
 // Base URL and DB constants (ubah sesuai environment)
-define('BASE_URL', 'http://192.168.0.25/SIMRS-EMR/');
+define('BASE_URL', 'http://localhost/SIMRS-EMR/');
 define('DB_HOST', DatabaseConfig::$host);
 define('DB_USER', DatabaseConfig::$username);
 define('DB_PASS', DatabaseConfig::$password);
 define('DB_NAME', DatabaseConfig::$database);
 
-// Autoload controllers (backend/controllers)
-spl_autoload_register(function ($class_name) {
-    $tryPaths = [
-        BACKEND_MODELS_PATH . '/' . $class_name . '.php',
-        FRONTEND_CONTROLLERS_PATH . '/' . $class_name . '.php',
-        BACKEND_PATH . '/controllers/' . $class_name . '.php', // fallback
-        FRONTEND_PATH . '/models/' . $class_name . '.php' // in case some left
+spl_autoload_register(function($class_name){
+    $files = [
+        BACKEND_MODELS_PATH . "/$class_name.php",
+        FRONTEND_PATH . "/controllers/$class_name.php",
     ];
-
-    foreach ($tryPaths as $file) {
-        if (file_exists($file)) {
-            require_once $file;
-            return;
-        }
-    }
+    foreach($files as $f) if (file_exists($f)) { require_once $f; return; }
 });
 
 // Helper functions
@@ -54,6 +45,15 @@ function isLoggedIn() {
 
 function hasRole($allowed_roles) {
     if (!isLoggedIn()) return false;
-    return in_array($_SESSION['role'], (array)$allowed_roles);
+
+    // sesi menyimpan jabatan di key 'jabatan' (sesuai UserModel::createUserSession)
+    $current = isset($_SESSION['jabatan']) ? strtolower($_SESSION['jabatan']) : null;
+    if (!$current) return false;
+
+    // allow both string and array for $allowed_roles
+    $allowed = is_array($allowed_roles) ? $allowed_roles : [$allowed_roles];
+    $allowed = array_map('strtolower', $allowed);
+
+    return in_array($current, $allowed);
 }
 ?>

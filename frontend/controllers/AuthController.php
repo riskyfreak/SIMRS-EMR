@@ -29,7 +29,8 @@ class AuthController {
 
     public function logout() {
         $this->userModel->logout();
-        redirect(BASE_URL . 'auth/index.php');
+        header('Location: ' . BASE_URL . 'auth/login');
+        exit;
     }
 
     private function showLoginPage($error = null) {
@@ -37,17 +38,21 @@ class AuthController {
     }
 
     private function redirectBasedOnRole($jabatan) {
+        $jabatanKey = strtolower(trim($jabatan));
+        // Map jabatan -> page param
         $roleRoutes = [
-            'admin' => 'dashboard.php',
-            'dokter' => 'dokter/dashboard.php',
-            'perawat' => 'perawat/dashboard.php',
-            'pendaftaran' => 'pendaftaran/dashboard.php',
-            'farmasi' => 'farmasi/dashboard.php',
-            'keuangan' => 'keuangan/dashboard.php'
+            'admin' => 'dashboard',
+            'dokter' => 'dokter/dashboard',
+            'perawat' => 'perawat/dashboard',
+            'pendaftaran' => 'pendaftaran/dashboard',
+            'farmasi' => 'farmasi/dashboard',
+            'keuangan' => 'keuangan/dashboard',
+            'laboratorium' => 'laboratorium/dashboard',
         ];
 
-        $defaultRoute = $roleRoutes[$jabatan] ?? 'dashboard.php';
-        redirect(BASE_URL . $defaultRoute);
+        $route = $roleRoutes[$jabatanKey] ?? 'dashboard';
+        // redirect ke URL bersih (tanpa index.php?page=...)
+        redirect(BASE_URL . $route . '/');
     }
 }
 ?>

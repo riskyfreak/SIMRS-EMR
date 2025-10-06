@@ -20,7 +20,11 @@ if (!isLoggedIn()) {
                 <span class="navbar-text me-3">
                     Selamat datang, <?php echo $_SESSION['nama_pegawai']; ?>
                 </span>
-                <a class="nav-link" href="<?php echo BASE_URL; ?>index.php?page=auth&action=logout">Logout</a>
+                <?php if (isLoggedIn()): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?php echo BASE_URL; ?>auth/logout">Logout</a>
+                    </li>
+                <?php endif; ?>
             </div>
         </div>
     </nav>
